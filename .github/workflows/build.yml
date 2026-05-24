@@ -1,19 +1,16 @@
-name: Build luci-app-maccloner
+name: Build and Release luci-app-maccloner
 
 on:
-#  push:
-#    branches: [ main, master ]
-#  pull_request:
-#    branches: [ main, master ]
+  push:
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-release:
     name: Build for mvebu/cortexa9
     runs-on: ubuntu-latest
 
     strategy:
-      fail-fast: false
       matrix:
         arch: [mvebu_cortexa9]
         include:
@@ -23,10 +20,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Build IPK package
+      - name: Build IPK
         uses: openwrt/gh-action-sdk@v5
         env:
           ARCH: ${{ matrix.arch }}
@@ -35,8 +30,16 @@ jobs:
           target: ${{ matrix.target }}
           subtarget: ${{ matrix.subtarget }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Rename artifact for release
+        run: |
+          mkdir -p release
+          find bin/packages -name "luci-app-maccloner_*.ipk" -exec cp {} release/ \;
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: luci-app-maccloner_${{ matrix.arch }}.ipk
-          path: bin/packages/${{ matrix.arch }}/packages_ci/luci-app-maccloner_*.ipk
+          tag_name: v${{ github.run_number }}
+          name: "Release v${{ github.run_number }}"
+          files: release/luci-app-maccloner_*.ipk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
