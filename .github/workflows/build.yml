@@ -27,8 +27,8 @@ jobs:
         env:
           # This is the critical line: tell the SDK to build ONLY your package
           PACKAGES: luci-app-maccloner
-          ARCH: ${{ matrix.target }}-openwrt-24.10
-          INDEX: 1
+          ARCH: ${{ matrix.target }}-openwrt-24.10.4
+          #INDEX: 1
 
       - name: Collect the IPK
         run: |
