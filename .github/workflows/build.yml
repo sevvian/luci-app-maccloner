@@ -1,45 +1,65 @@
-name: Build and Release luci-app-maccloner
+name: Build luci-app-maccloner for OpenWrt 24.10
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
-  build-and-release:
-    name: Build for mvebu/cortexa9
+  build:
+    name: Build for ${{ matrix.target }} on ${{ matrix.version }}
     runs-on: ubuntu-latest
-
     strategy:
+      fail-fast: false
       matrix:
-        arch: [mvebu_cortexa9]
         include:
-          - arch: mvebu_cortexa9
-            target: mvebu
-            subtarget: cortexa9
+          # Linksys WRT32X / WRT3200ACM
+          - version: openwrt-24.10
+            target: mvebu-cortexa9
+          # Raspberry Pi 4B (also works with ImmortalWrt 24.10)
+          - version: openwrt-24.10
+            target: bcm27xx-bcm2711
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Build IPK
-        uses: openwrt/gh-action-sdk@v5
+      - name: Build IPK package
+        uses: openwrt/gh-action-sdk@v7
         env:
-          ARCH: ${{ matrix.arch }}
-          FEEDNAME: packages_ci
-        with:
-          target: ${{ matrix.target }}
-          subtarget: ${{ matrix.subtarget }}
+          ARCH: ${{ matrix.target }}-${{ matrix.version }}
+          FEEDNAME: local
+          INDEX: 1
 
-      - name: Rename artifact for release
+      - name: Collect built packages
         run: |
           mkdir -p release
           find bin/packages -name "luci-app-maccloner_*.ipk" -exec cp {} release/ \;
 
-      - name: Upload to release
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: luci-app-maccloner_${{ matrix.target }}_${{ matrix.version }}.ipk
+          path: release/*.ipk
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: "Release v${{ github.run_number }}"
-          files: release/luci-app-maccloner_*.ipk
+          files: artifacts/**/*.ipk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
