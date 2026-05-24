@@ -1,0 +1,53 @@
+<%+header%>
+<h2><%:MAC Cloner Status%></h2>
+
+<div class="cbi-section">
+    <h3><%:Global Service%></h3>
+    <p>
+    <% if service_enabled == "1" then %>
+        <span style="color: green; font-weight: bold;"><%:Service is ENABLED%></span>
+    <% else %>
+        <span style="color: red; font-weight: bold;"><%:Service is DISABLED%></span>
+    <% end %>
+    </p>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Rule Verification%></h3>
+    <table class="cbi-section-table">
+        <tr class="cbi-section-table-titles">
+            <th><%:Interface%></th>
+            <th><%:Target SSID%></th>
+            <th><%:Custom MAC%></th>
+            <th><%:Current MAC%></th>
+            <th><%:Connected SSID%></th>
+            <th><%:Status%></th>
+        </tr>
+        <% for _, rule in ipairs(rules) do %>
+        <tr class="cbi-section-table-row">
+            <td><%=rule.iface%></td>
+            <td><%=rule.target_ssid%></td>
+            <td><code><%=rule.custom_mac%></code></td>
+            <td><code><%=rule.current_mac%></code></td>
+            <td><%=rule.current_ssid or "-"%></td>
+            <td>
+                <% if rule.rule_enabled ~= "1" then %>
+                    <span style="color: grey;"><%:Rule disabled%></span>
+                <% elseif rule.match then %>
+                    <span style="color: green;"><%:Custom MAC is active%></span>
+                <% else %>
+                    <span style="color: red;">
+                        <%:MAC mismatch%>
+                    </span>
+                <% end %>
+            </td>
+        </tr>
+        <% end %>
+    </table>
+</div>
+
+<div class="cbi-section">
+    <small><%:Refresh the page to re‑check the current status.%></small>
+</div>
+
+<%+footer%>
