@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-maccloner
-PKG_VERSION:=1.0.1
+PKG_VERSION:=1.0.2
 PKG_RELEASE:=1
 
 LUCI_TITLE:=LuCI Support for MAC Cloner
@@ -26,5 +26,4 @@ if [ -z "$${IPKG_INSTROOT}" ]; then
 fi
 endef
 
-# call BuildPackage - OpenWrt buildroot signature
 $(eval $(call BuildPackage,$(PKG_NAME)))
