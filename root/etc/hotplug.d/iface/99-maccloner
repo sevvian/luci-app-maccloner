@@ -1,0 +1,44 @@
+#!/bin/sh
+
+[ "$${ACTION}" = "ifup" ] || exit 0
+[ "$(uci -q get maccloner.settings.enabled)" = "1" ] || exit 0
+
+. /lib/functions/network.sh
+
+logger -t maccloner "Hotplug triggered for $INTERFACE (device: $DEVICE)"
+
+uci show maccloner | grep -oP "maccloner\.@rule\[\d+\]" | while read -r rule_section; do
+    ENABLED=$(uci -q get ${rule_section}.enabled)
+    [ "$ENABLED" = "1" ] || continue
+
+    IFACE=$(uci -q get ${rule_section}.interface)
+    TARGET_SSID=$(uci -q get ${rule_section}.target_ssid)
+    CUSTOM_MAC=$(uci -q get ${rule_section}.custom_mac)
+
+    if [ "$INTERFACE" != "$IFACE" ] && [ "$DEVICE" != "$IFACE" ]; then
+        continue
+    fi
+
+    if [ -z "$CUSTOM_MAC" ]; then
+        logger -t maccloner "No custom MAC specified for rule, skipping."
+        continue
+    fi
+
+    # Check SSID only for wireless interfaces
+    if iwinfo "$IFACE" info >/dev/null 2>&1; then
+        CURRENT_SSID=$(iwinfo "$IFACE" info | grep -oP 'SSID: "\K[^"]+')
+        if [ -n "$TARGET_SSID" ] && [ "$CURRENT_SSID" != "$TARGET_SSID" ]; then
+            logger -t maccloner "SSID mismatch ($CURRENT_SSID != $TARGET_SSID), skipping."
+            continue
+        fi
+    fi
+
+    logger -t maccloner "Applying custom MAC $CUSTOM_MAC to interface $IFACE (SSID: ${TARGET_SSID:-any})"
+
+    uci set wireless.@wifi-iface[$(uci show wireless | grep -c "wifi-iface")].macaddr="$CUSTOM_MAC"
+    uci commit wireless
+    wifi reload
+
+    logger -t maccloner "Wireless restarted for $IFACE. New MAC should be active."
+    break
+done
