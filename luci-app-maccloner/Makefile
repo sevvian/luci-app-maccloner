@@ -1,15 +1,16 @@
-
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-maccloner
-PKG_VERSION:=1.0.2
+PKG_VERSION:=1.0.3
 PKG_RELEASE:=1
 
-LUCI_TITLE:=LuCI Support for MAC Cloner
+# This line overrides the automatic dependency on luci-lib-base
 LUCI_DEPENDS:=+luci-base +libiwinfo
 LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
+
+# The rest of the file remains the same
 
 define Package/$(PKG_NAME)/postinst
 #!/bin/sh
@@ -27,4 +28,5 @@ if [ -z "$${IPKG_INSTROOT}" ]; then
 fi
 endef
 
+# call BuildPackage - OpenWrt buildroot signature
 $(eval $(call BuildPackage,$(PKG_NAME)))
