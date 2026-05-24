@@ -1,4 +1,4 @@
-name: Build luci-app-maccloner for ImmortalWrt 24.10
+name: Build luci-app-maccloner for ImmortalWrt 24.10.4 (mvebu)
 
 on:
   push:
@@ -17,7 +17,10 @@ jobs:
         uses: immortalwrt/gh-action-sdk@master
         env:
           PACKAGES: luci-app-maccloner
-          ARCH: mvebu-cortexa9-24.10.4 # Verify the exact tag name
+          # Use the exact tag from Docker Hub
+          ARCH: mvebu-cortexa9-openwrt-24.10.4
+          # No CONTAINER override needed; defaults to immortalwrt/sdk
+          # No INDEX=1 (prevents index generation failure)
 
       - name: Collect the IPK
         run: |
@@ -27,5 +30,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: luci-app-maccloner_immortalwrt_mvebu_cortexa9.ipk
+          name: luci-app-maccloner_immortalwrt_24.10.4_mvebu_cortexa9.ipk
           path: release/*.ipk
