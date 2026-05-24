@@ -1,4 +1,4 @@
-name: Build luci-app-maccloner for ImmortalWrt 24.10.4 (mvebu)
+name: Build luci-app-maccloner for ImmortalWrt 24.10.4
 
 on:
   push:
@@ -17,10 +17,8 @@ jobs:
         uses: immortalwrt/gh-action-sdk@master
         env:
           PACKAGES: luci-app-maccloner
-          # Use the exact tag from Docker Hub
           ARCH: mvebu-cortexa9-openwrt-24.10.4
-          # No CONTAINER override needed; defaults to immortalwrt/sdk
-          # No INDEX=1 (prevents index generation failure)
+          # EXTRA_FEEDS: src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10
 
       - name: Collect the IPK
         run: |
