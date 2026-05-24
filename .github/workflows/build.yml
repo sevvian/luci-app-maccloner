@@ -1,4 +1,4 @@
-name: Build luci-app-maccloner for OpenWrt 24.10
+name: Build luci-app-maccloner for ImmortalWrt 24.10.4
 
 on:
   push:
@@ -7,28 +7,22 @@ on:
 
 jobs:
   build:
-    name: Build for ${{ matrix.target }}
+    name: Build for mvebu/cortexa9 (ImmortalWrt)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Linksys WRT32X (mvebu/cortexa9)
-          - target: mvebu-cortexa9
-          # Raspberry Pi 4B (bcm27xx/bcm2711)
-          - target: bcm27xx-bcm2711
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build only luci-app-maccloner
+      - name: Build package with ImmortalWrt SDK
         uses: openwrt/gh-action-sdk@v7
         env:
-          # This is the critical line: tell the SDK to build ONLY your package
+          # Build only your package – avoids compiling the entire feed
           PACKAGES: luci-app-maccloner
-          ARCH: ${{ matrix.target }}-openwrt-24.10
-          #INDEX: 1
+          # ImmortalWrt SDK image and version tag
+          CONTAINER: ghcr.io/immortalwrt/sdk
+          ARCH: mvebu-cortexa9-24.10.4
+          # Do NOT set INDEX=1 – index generation is broken in the action v7
+          # and not needed for a single package.
 
       - name: Collect the IPK
         run: |
@@ -38,5 +32,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: luci-app-maccloner_${{ matrix.target }}.ipk
+          name: luci-app-maccloner_immortalwrt_24.10.4_mvebu_cortexa9.ipk
           path: release/*.ipk
