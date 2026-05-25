@@ -6,8 +6,11 @@
 . /lib/functions/network.sh
 
 DEVICE_NAME="${DEVICE:-$INTERFACE}"
+LOCK_DIR="/var/run/maccloner"
 
 logger -t maccloner "Hotplug triggered for $INTERFACE (device: $DEVICE_NAME)"
+
+mkdir -p "$LOCK_DIR"
 
 idx=0
 while true; do
@@ -21,31 +24,46 @@ while true; do
     TARGET_SSID=$(uci -q get ${rule_section}.target_ssid)
     CUSTOM_MAC=$(uci -q get ${rule_section}.custom_mac)
 
+    # Accept match on device name or logical interface name
     if [ "$DEVICE_NAME" != "$RULE_IFACE" ] && [ "$INTERFACE" != "$RULE_IFACE" ]; then
         continue
     fi
 
     [ -z "$CUSTOM_MAC" ] && continue
 
-    if iwinfo "$RULE_IFACE" info >/dev/null 2>&1; then
-        CURRENT_SSID=$(iwinfo "$RULE_IFACE" info | sed -n 's/.*SSID: "\(.*\)"/\1/p')
-        if [ -n "$TARGET_SSID" ] && [ "$CURRENT_SSID" != "$TARGET_SSID" ]; then
-            logger -t maccloner "SSID mismatch ($CURRENT_SSID != $TARGET_SSID), skipping."
-            continue
-        fi
+    # Lock to prevent re‑triggering within 20 seconds (enough for radio reload)
+    LOCKFILE="$LOCK_DIR/$RULE_IFACE"
+    if [ -f "$LOCKFILE" ] && [ $(($(date +%s) - $(stat -c %Y "$LOCKFILE"))) -lt 20 ]; then
+        logger -t maccloner "Skipping $RULE_IFACE – recently modified"
+        exit 0
     fi
+    touch "$LOCKFILE"
 
-    CURRENT_MAC=$(cat /sys/class/net/$RULE_IFACE/address 2>/dev/null | tr '[:upper:]' '[:lower:]')
-    if [ "$CURRENT_MAC" = "$(echo $CUSTOM_MAC | tr '[:upper:]' '[:lower:]')" ]; then
+    # Get current MAC (POSIX sed, no grep -P)
+    CURRENT_MAC=$(ip link show "$RULE_IFACE" 2>/dev/null | sed -n 's/.*ether \([^ ]*\).*/\1/p' | tr '[:upper:]' '[:lower:]')
+    if [ "$CURRENT_MAC" = "$(echo "$CUSTOM_MAC" | tr '[:upper:]' '[:lower:]')" ]; then
+        logger -t maccloner "MAC already set on $RULE_IFACE, nothing to do."
         exit 0
     fi
 
-    logger -t maccloner "Changing MAC of $RULE_IFACE to $CUSTOM_MAC (SSID: ${TARGET_SSID:-any})"
+    # Determine radio name (e.g., phy2‑sta0 → phy2 → radio2)
+    PHY=""
+    [ -x /usr/sbin/iw ] && PHY=$(iw dev "$RULE_IFACE" info 2>/dev/null | grep wiphy | awk '{print $2}')
+    [ -z "$PHY" ] && PHY=$(cat /sys/class/net/$RULE_IFACE/phy80211/name 2>/dev/null)
+    RADIO="radio${PHY#phy}"
 
+    logger -t maccloner "Changing MAC of $RULE_IFACE to $CUSTOM_MAC"
+
+    # Set MAC while interface is down
     ip link set dev "$RULE_IFACE" down
     ip link set dev "$RULE_IFACE" address "$CUSTOM_MAC"
     ip link set dev "$RULE_IFACE" up
 
-    logger -t maccloner "MAC changed. wpa_supplicant will reassociate automatically."
+    logger -t maccloner "MAC changed. Restarting radio $RADIO to reassociate..."
+
+    # Reload only this radio – forces wpa_supplicant to re‑authenticate with new MAC
+    wifi reload "$RADIO"
+
+    logger -t maccloner "Radio $RADIO reloaded. DHCP will obtain IP."
     break
 done
