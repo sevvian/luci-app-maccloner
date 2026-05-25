@@ -13,7 +13,7 @@ define Package/$(PKG_NAME)
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=MAC Cloner for Wi-Fi Interfaces
-  DEPENDS:=+luci-base +libiwinfo +wpa-cli
+  DEPENDS:=+luci-base +libiwinfo
   PKGARCH:=all
 endef
 
