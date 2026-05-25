@@ -10,9 +10,8 @@ local r = m:section(TypedSection, "rule", translate("MAC Cloner Rules"),
 r.addremove = true
 r.template = "cbi/tblsection"
 
--- Allowed any string, including hyphens
+-- Accept any string (including hyphens) for interface names
 r:option(Value, "interface", translate("Interface")).datatype = "string"
-
 r:option(Value, "target_ssid", translate("Target SSID (optional)"))
 r:option(Value, "custom_mac", translate("Custom MAC Address"))
 r:option(Flag, "enabled", translate("Enabled"))

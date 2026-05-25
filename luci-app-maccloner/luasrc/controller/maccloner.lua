@@ -18,9 +18,7 @@ function action_status()
         local custom_mac = s.custom_mac or ""
         local rule_enabled = s.enabled or "0"
 
-        -- Get current MAC of the interface
         local current_mac = sys.exec("cat /sys/class/net/" .. iface .. "/address 2>/dev/null"):gsub("\n", "")
-        -- Get current SSID if wireless
         local current_ssid = ""
         local is_wireless = false
         if sys.exec("iwinfo " .. iface .. " info 2>/dev/null") ~= "" then

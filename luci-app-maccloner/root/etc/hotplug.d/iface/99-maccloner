@@ -5,7 +5,9 @@
 
 . /lib/functions/network.sh
 
-logger -t maccloner "Hotplug triggered for $INTERFACE (device: $DEVICE)"
+DEVICE_NAME="${DEVICE:-$INTERFACE}"
+
+logger -t maccloner "Hotplug triggered for $INTERFACE (device: $DEVICE_NAME)"
 
 idx=0
 while true; do
@@ -13,65 +15,37 @@ while true; do
     uci -q get ${rule_section}.interface >/dev/null || break
     idx=$((idx + 1))
 
-    ENABLED=$(uci -q get ${rule_section}.enabled)
-    [ "$ENABLED" = "1" ] || continue
+    [ "$(uci -q get ${rule_section}.enabled)" = "1" ] || continue
 
-    IFACE=$(uci -q get ${rule_section}.interface)
+    RULE_IFACE=$(uci -q get ${rule_section}.interface)
     TARGET_SSID=$(uci -q get ${rule_section}.target_ssid)
     CUSTOM_MAC=$(uci -q get ${rule_section}.custom_mac)
 
-    if [ "$INTERFACE" != "$IFACE" ] && [ "$DEVICE" != "$IFACE" ]; then
+    if [ "$DEVICE_NAME" != "$RULE_IFACE" ] && [ "$INTERFACE" != "$RULE_IFACE" ]; then
         continue
     fi
 
-    [ -z "$CUSTOM_MAC" ] && { logger -t maccloner "No custom MAC, skipping."; continue; }
+    [ -z "$CUSTOM_MAC" ] && continue
 
-    # SSID verification
-    if iwinfo "$IFACE" info >/dev/null 2>&1; then
-        CURRENT_SSID=$(iwinfo "$IFACE" info | sed -n 's/.*SSID: "\(.*\)"/\1/p')
+    if iwinfo "$RULE_IFACE" info >/dev/null 2>&1; then
+        CURRENT_SSID=$(iwinfo "$RULE_IFACE" info | sed -n 's/.*SSID: "\(.*\)"/\1/p')
         if [ -n "$TARGET_SSID" ] && [ "$CURRENT_SSID" != "$TARGET_SSID" ]; then
             logger -t maccloner "SSID mismatch ($CURRENT_SSID != $TARGET_SSID), skipping."
             continue
         fi
     fi
 
-    # Reliable PHY detection (works on all OpenWrt/ImmortalWrt)
-    PHY=""
-    if [ -x /usr/sbin/iw ]; then
-        PHY=$(iw dev "$IFACE" info 2>/dev/null | grep wiphy | awk '{print $2}')
+    CURRENT_MAC=$(cat /sys/class/net/$RULE_IFACE/address 2>/dev/null | tr '[:upper:]' '[:lower:]')
+    if [ "$CURRENT_MAC" = "$(echo $CUSTOM_MAC | tr '[:upper:]' '[:lower:]')" ]; then
+        exit 0
     fi
-    if [ -z "$PHY" ] && [ -d /sys/class/net ]; then
-        PHY=$(cat /sys/class/net/$IFACE/phy80211/name 2>/dev/null)
-    fi
-    RADIO="radio${PHY#phy}"
 
-    logger -t maccloner "Applying custom MAC $CUSTOM_MAC to $IFACE (SSID: ${TARGET_SSID:-any}, radio: $RADIO)"
+    logger -t maccloner "Changing MAC of $RULE_IFACE to $CUSTOM_MAC (SSID: ${TARGET_SSID:-any})"
 
-    # Loop over all wifi-iface sections using numeric indexing
-    FOUND=0
-    widx=0
-    while true; do
-        wifi_section="wireless.@wifi-iface[${widx}]"
-        uci -q get ${wifi_section}.device >/dev/null || break
-        widx=$((widx + 1))
+    ip link set dev "$RULE_IFACE" down
+    ip link set dev "$RULE_IFACE" address "$CUSTOM_MAC"
+    ip link set dev "$RULE_IFACE" up
 
-        DEV=$(uci -q get ${wifi_section}.device)
-        MODE=$(uci -q get ${wifi_section}.mode)
-        SSID=$(uci -q get ${wifi_section}.ssid)
-
-        if [ "$DEV" = "$RADIO" ] && [ "$MODE" = "sta" ] && [ "$SSID" = "$CURRENT_SSID" ]; then
-            uci set ${wifi_section}.macaddr="$CUSTOM_MAC"
-            FOUND=1
-            break
-        fi
-    done
-
-    if [ "$FOUND" -eq 1 ]; then
-        uci commit wireless
-        wifi reload
-        logger -t maccloner "Wireless restarted for $IFACE. New MAC should be active."
-    else
-        logger -t maccloner "Could not find matching wifi-iface for $IFACE on $RADIO / SSID $CURRENT_SSID"
-    fi
+    logger -t maccloner "MAC changed. wpa_supplicant will reassociate automatically."
     break
 done
